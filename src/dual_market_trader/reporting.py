@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
-from dual_market_trader.live_models import LiveOrderResult
+from dual_market_trader.live_models import LiveOrderResult, LivePaperExecutionResult
 from dual_market_trader.models import (
     MarketPerformanceEntry,
     PerformanceLogEntry,
@@ -35,6 +35,16 @@ def append_live_execution_log(result: LiveOrderResult, path: Path) -> LiveOrderR
     return result
 
 
+def append_live_paper_execution_log(
+    result: LivePaperExecutionResult,
+    path: Path,
+) -> LivePaperExecutionResult:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        _ = handle.write(result.model_dump_json() + "\n")
+    return result
+
+
 def read_performance_log(path: Path) -> tuple[PerformanceLogEntry, ...]:
     if not path.exists():
         return ()
@@ -50,6 +60,16 @@ def read_live_execution_log(path: Path) -> tuple[LiveOrderResult, ...]:
         return ()
     return tuple(
         LiveOrderResult.model_validate_json(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    )
+
+
+def read_live_paper_execution_log(path: Path) -> tuple[LivePaperExecutionResult, ...]:
+    if not path.exists():
+        return ()
+    return tuple(
+        LivePaperExecutionResult.model_validate_json(line)
         for line in path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     )

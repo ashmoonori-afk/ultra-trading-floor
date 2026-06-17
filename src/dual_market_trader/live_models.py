@@ -1,5 +1,5 @@
 from enum import StrEnum, unique
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -48,3 +48,14 @@ class LiveOrderResult(BaseModel):
     order_id: str | None
     confirmation_token_present: bool
     broker_message: str
+
+
+class LivePaperExecutionResult(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    recorded_at: str
+    mode: Literal["live_paper"] = "live_paper"
+    intent: LiveOrderIntent
+    fill_price: float = Field(gt=0)
+    notional: float = Field(ge=0)
+    note: str

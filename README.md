@@ -13,14 +13,24 @@ The bundled sample data is deterministic and intentionally local. A report that 
 Every `run-once` appends a durable performance summary to `.data/performance-log.jsonl`.
 The full paper report is still written to the selected evidence path.
 
+## Live Paper Validation
+
+Run this before any live-order attempt. It uses the live-order intent shape and a real-time cycle loop, but fills only on paper and writes a separate validation log.
+
+```bash
+uv run dual-market-paper-trader run-live-paper --market KR --symbol 005930 --side buy --quantity 1 --price 71000 --max-cycles 3 --interval-seconds 30
+```
+
+Every live-paper cycle appends to `.data/live-paper-executions.jsonl`. This file is separate from real live-order attempts.
+
 ## Dashboard
 
 ```bash
-uv run dual-market-paper-trader dashboard --host 127.0.0.1 --port 8765 --log .data/performance-log.jsonl --live-log .data/live-executions.jsonl
+uv run dual-market-paper-trader dashboard --host 127.0.0.1 --port 8765 --log .data/performance-log.jsonl --live-paper-log .data/live-paper-executions.jsonl --live-log .data/live-executions.jsonl
 ```
 
 The WebUI reads the persistent performance log and shows the latest KR/US paper
-results, the append-only run history, and the append-only live execution log.
+results, the append-only run history, the live-paper validation log, and the append-only live execution log.
 
 ## Live Trading
 
