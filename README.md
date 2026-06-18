@@ -5,6 +5,10 @@
 <p align="center"><b>Guarded KR/US paper validation and fail-closed live execution for solo trading research.</b></p>
 
 <p align="center">
+  <img src="assets/ultra-trading-floor-hero.png" alt="Ultra Trading Floor dashboard preview" width="900">
+</p>
+
+<p align="center">
   <a href="docs/OPERATING.md"><b>Operating notes</b></a> -
   <a href="docs/SAFETY.md"><b>Safety contract</b></a> -
   <a href="LICENSE"><b>MIT License</b></a> -
@@ -140,22 +144,6 @@ The command still refuses to place an order unless all of the following are true
 - `tossctl` is installed and authenticated
 
 `--price` is required for `trade-live`, `run-live`, and `run-live-paper`.
-
-## Image-generation direction
-
-The README structure follows the open-source product rhythm of [`Plane`](https://github.com/makeplane/plane): centered hero, direct links, fast installation, features, docs, community, security, and license. For future README hero art or social cards, use a workflow inspired by [`god-tibo-imagen`](https://github.com/NomaDamas/god-tibo-imagen): concrete prompt, explicit output path, optional image inputs only after those inputs exist, and a dry-run step before writing assets.
-
-Example visual prompts:
-
-```bash
-gti --prompt "A clean open-source README hero for a guarded dual-market trading floor dashboard, paper-first, fail-closed risk gates, KR and US market tiles, sober fintech palette" --size 1536x1024 --output assets/ultra-trading-floor-hero.png
-
-gti --prompt "A restrained GitHub product card for append-only trading evidence logs, validation status, fallback transparency, and a PAPER ONLY safety badge" --size 2048x1152 --output assets/evidence-card.png
-
-gti --prompt "A minimal icon set for paper validation, live-paper fills, fail-closed live orders, and append-only logs" --output assets/readme-icons.png
-```
-
-Image generation is a README asset workflow only. It is not part of the trading loop, does not place orders, and does not change strategy selection.
 
 ## Built with
 
