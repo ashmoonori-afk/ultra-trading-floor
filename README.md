@@ -30,6 +30,7 @@ Meet **Ultra Trading Floor**, a separate dual-market trading lab for testing KR 
 
 - Runs a repeatable improvement loop across KR and US sample markets.
 - Records every paper run to `.data/paper-runs.jsonl` and `.data/performance-log.jsonl`.
+- Scans multiple KR/US symbols and records selection decisions to `.data/screener-decisions.jsonl`.
 - Separates live-clock paper fills from real live orders with `.data/live-paper-executions.jsonl`.
 - Keeps successful real live executions in `.data/live-executions.jsonl`.
 - Serves a terminal-style local dashboard for paper performance, real market minute charts, live-paper fills, and live execution history.
@@ -82,6 +83,17 @@ uv run dual-market-paper-trader run-paper-loop \
   --performance-log .data/performance-log.jsonl
 ```
 
+Start direct multi-symbol paper scanning and trading:
+
+```bash
+uv run dual-market-paper-trader scan-trade-paper \
+  --markets KR,US \
+  --max-positions 4 \
+  --per-position-notional 1000000 \
+  --max-cycles 10000 \
+  --interval-seconds 30
+```
+
 Start the WebUI dashboard:
 
 ```bash
@@ -91,6 +103,7 @@ uv run dual-market-paper-trader dashboard \
   --log .data/performance-log.jsonl \
   --live-paper-log .data/live-paper-executions.jsonl \
   --live-log .data/live-executions.jsonl \
+  --screener-log .data/screener-decisions.jsonl \
   --refresh-seconds 5
 ```
 
@@ -110,6 +123,9 @@ Open `http://127.0.0.1:8765`.
 - **Live-clock paper validation**
   `run-live-paper` uses the same order intent fields as the live path, but fills paper orders from the latest Yahoo Finance 1-minute close. It never places a brokerage order.
 
+- **Multi-symbol scanner trading**
+  `scan-trade-paper` loads Yahoo Finance 1-minute candles for KR/US candidate universes, ranks symbols by momentum, breakout, volume, and volatility, logs the decision set, then paper-fills newly selected symbols only. Within one running scanner process, a symbol already entered on paper is not bought again on later cycles.
+
 - **Real-time paper performance loop**
   `run-paper-loop` repeatedly runs the paper validation pipeline on a live-clock interval and appends `.data/performance-log.jsonl` for dashboard auto-refresh.
 
@@ -123,7 +139,7 @@ Open `http://127.0.0.1:8765`.
   `trade-live` and `run-live` exit nonzero and write no order artifact unless every live-order gate is present.
 
 - **Append-only operating trail**
-  JSONL logs keep paper performance, live-paper fills, live execution results, validation failures, fallback strategy, and report lineage separate.
+  JSONL logs keep paper performance, screener decisions, live-paper fills, live execution results, validation failures, fallback strategy, and report lineage separate.
 
 ## Live paper validation
 

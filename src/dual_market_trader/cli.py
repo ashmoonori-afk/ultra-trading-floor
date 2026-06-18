@@ -17,6 +17,8 @@ from dual_market_trader.live_cli import (
 from dual_market_trader.live_paper_cli import DEFAULT_LIVE_PAPER_EXECUTION_LOG
 from dual_market_trader.models import Market, PerformanceLogEntry, RunConfig, ValidationReport
 from dual_market_trader.reporting import append_performance_log, append_run_log, write_report
+from dual_market_trader.screener import DEFAULT_SCREENER_DECISION_LOG
+from dual_market_trader.screener_cli import register_screener_commands
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 console = Console()
@@ -25,6 +27,7 @@ DEFAULT_CONFIG_PATH: Final = Path("examples/paper_target_5.json")
 DEFAULT_PERFORMANCE_LOG: Final = Path(".data/performance-log.jsonl")
 DEFAULT_PAPER_RUN_LOG: Final = Path(".data/paper-runs.jsonl")
 register_live_commands(app, console)
+register_screener_commands(app, console)
 
 
 @app.command("run-once")
@@ -161,6 +164,10 @@ def dashboard(
         Path,
         typer.Option("--live-paper-log", dir_okay=False),
     ] = DEFAULT_LIVE_PAPER_EXECUTION_LOG,
+    screener_decision_log_path: Annotated[
+        Path,
+        typer.Option("--screener-log", dir_okay=False),
+    ] = DEFAULT_SCREENER_DECISION_LOG,
     refresh_seconds: Annotated[
         int,
         typer.Option("--refresh-seconds", min=1, max=3600),
@@ -170,6 +177,7 @@ def dashboard(
     console.print(f"performance log: {log_path}")
     console.print(f"live execution log: {live_log_path}")
     console.print(f"live paper execution log: {live_paper_log_path}")
+    console.print(f"screener decision log: {screener_decision_log_path}")
     serve_dashboard(
         DashboardServerConfig(
             host=host,
@@ -177,6 +185,7 @@ def dashboard(
             log_path=log_path,
             live_log_path=live_log_path,
             live_paper_log_path=live_paper_log_path,
+            screener_decision_log_path=screener_decision_log_path,
             refresh_seconds=refresh_seconds,
         ),
     )

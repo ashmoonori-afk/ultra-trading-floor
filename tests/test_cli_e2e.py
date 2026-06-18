@@ -237,6 +237,7 @@ def test_dashboard_cli_surface_exposes_log_option() -> None:
     assert "--log" in result.stdout
     assert "--live-log" in result.stdout
     assert "--live-paper-log" in result.stdout
+    assert "--screener-log" in result.stdout
     assert "--refresh-seconds" in result.stdout
     assert "--host" in result.stdout
     assert "--port" in result.stdout

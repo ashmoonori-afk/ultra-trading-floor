@@ -17,6 +17,7 @@ from dual_market_trader.dashboard_tables import (
     market_rows,
     pipeline_rows,
     run_rows,
+    screener_rows,
 )
 from dual_market_trader.market_data import YahooFinanceMarketDataProvider
 from dual_market_trader.reporting import (
@@ -24,6 +25,7 @@ from dual_market_trader.reporting import (
     read_live_paper_execution_log,
     read_performance_log,
 )
+from dual_market_trader.screener import DEFAULT_SCREENER_DECISION_LOG, read_screener_decision_log
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -31,6 +33,7 @@ if TYPE_CHECKING:
     from dual_market_trader.charting import MarketDataProvider, MarketMinuteChart
     from dual_market_trader.live_models import LiveOrderResult, LivePaperExecutionResult
     from dual_market_trader.models import PerformanceLogEntry
+    from dual_market_trader.screener import ScreenerDecision
 
 DEFAULT_LIVE_LOG_PATH = Path(".data/live-executions.jsonl")
 DEFAULT_LIVE_PAPER_LOG_PATH = Path(".data/live-paper-executions.jsonl")
@@ -44,6 +47,7 @@ class DashboardServerConfig:
     log_path: Path
     live_log_path: Path
     live_paper_log_path: Path
+    screener_decision_log_path: Path = DEFAULT_SCREENER_DECISION_LOG
     refresh_seconds: int = DEFAULT_REFRESH_SECONDS
 
 
@@ -53,6 +57,7 @@ class DashboardViewState:
     latest: PerformanceLogEntry | None
     live_entries: Sequence[LiveOrderResult]
     live_paper_entries: Sequence[LivePaperExecutionResult]
+    screener_decisions: Sequence[ScreenerDecision]
     charts: Sequence[MarketMinuteChart]
     refresh_seconds: int
 
@@ -61,12 +66,14 @@ def render_dashboard(
     log_path: Path,
     live_log_path: Path = DEFAULT_LIVE_LOG_PATH,
     live_paper_log_path: Path = DEFAULT_LIVE_PAPER_LOG_PATH,
+    screener_decision_log_path: Path = DEFAULT_SCREENER_DECISION_LOG,
     refresh_seconds: int = DEFAULT_REFRESH_SECONDS,
     market_data_provider: MarketDataProvider | None = None,
 ) -> str:
     entries = read_performance_log(log_path)
     live_entries = read_live_execution_log(live_log_path)
     live_paper_entries = read_live_paper_execution_log(live_paper_log_path)
+    screener_decisions = read_screener_decision_log(screener_decision_log_path)
     latest = entries[-1] if entries else None
     charts = build_market_minute_charts(entries, live_paper_entries, market_data_provider)
     return "\n".join(
@@ -87,6 +94,7 @@ def render_dashboard(
                     latest=latest,
                     live_entries=live_entries,
                     live_paper_entries=live_paper_entries,
+                    screener_decisions=screener_decisions,
                     charts=charts,
                     refresh_seconds=refresh_seconds,
                 ),
@@ -104,6 +112,7 @@ def serve_dashboard(config: DashboardServerConfig) -> None:
             config.log_path,
             config.live_log_path,
             config.live_paper_log_path,
+            config.screener_decision_log_path,
             config.refresh_seconds,
         ),
     )
@@ -114,6 +123,7 @@ def _handler_for(
     log_path: Path,
     live_log_path: Path,
     live_paper_log_path: Path,
+    screener_decision_log_path: Path,
     refresh_seconds: int,
 ) -> type[BaseHTTPRequestHandler]:
     market_data_provider = YahooFinanceMarketDataProvider()
@@ -127,6 +137,7 @@ def _handler_for(
                 log_path,
                 live_log_path,
                 live_paper_log_path,
+                screener_decision_log_path,
                 refresh_seconds,
                 market_data_provider,
             ).encode("utf-8")
@@ -161,6 +172,22 @@ def _dashboard_body(state: DashboardViewState) -> str:
                 state.charts,
             ),
             render_market_charts(state.charts),
+            _section(
+                "Symbol Screener",
+                (
+                    "Recorded",
+                    "Market",
+                    "Symbol",
+                    "Score",
+                    "Latest",
+                    "Momentum",
+                    "Breakout",
+                    "Volume",
+                    "Status",
+                    "Reason",
+                ),
+                screener_rows(state.screener_decisions),
+            ),
             _section(
                 "Latest Market Results",
                 ("Market", "Symbol", "Daily return", "Max drawdown", "Trades"),

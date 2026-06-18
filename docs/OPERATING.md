@@ -26,6 +26,14 @@ uv run dual-market-paper-trader run-live-paper --market KR --symbol 005930 --sid
 
 `run-live-paper` fetches the latest Yahoo Finance 1-minute close for paper fills. `--price` is optional; when present, it is only a requested reference price in the log, not the paper fill price. The command exits nonzero if the market price cannot be fetched.
 
+Run direct multi-symbol paper scanning and trading:
+
+```bash
+uv run dual-market-paper-trader scan-trade-paper --markets KR,US --max-positions 4 --per-position-notional 1000000 --max-cycles 10000 --interval-seconds 30
+```
+
+`scan-trade-paper` ranks the configured KR/US symbol universes from Yahoo Finance 1-minute candles, writes `.data/screener-decisions.jsonl`, and appends newly selected paper fills to `.data/live-paper-executions.jsonl`. Within one running scanner process, a symbol already entered on paper is not bought again on later cycles. Broker credentials are not required and no live order is placed.
+
 Run the live-refreshing paper performance loop when the dashboard should update paper performance in real time:
 
 ```bash
@@ -41,10 +49,10 @@ uv run dual-market-paper-trader run-live --market KR --symbol 005930 --side buy 
 Run the dashboard with both persistent logs:
 
 ```bash
-uv run dual-market-paper-trader dashboard --host 127.0.0.1 --port 8765 --log .data/performance-log.jsonl --live-paper-log .data/live-paper-executions.jsonl --live-log .data/live-executions.jsonl --refresh-seconds 5
+uv run dual-market-paper-trader dashboard --host 127.0.0.1 --port 8765 --log .data/performance-log.jsonl --live-paper-log .data/live-paper-executions.jsonl --live-log .data/live-executions.jsonl --screener-log .data/screener-decisions.jsonl --refresh-seconds 5
 ```
 
-The dashboard auto-refreshes and reads append-only files for paper performance, real-time paper orders, and gated live executions.
+The dashboard auto-refreshes and reads append-only files for paper performance, screener decisions, real-time paper orders, and gated live executions.
 The served dashboard fetches Yahoo Finance 1-minute candles for the active KR/US paper symbols and overlays the latest paper entry, target exit, and stop loss marker for each symbol. The chart source label reads `YAHOO REAL 1M` when real candles are present and `FALLBACK 1M` only when the real fetch is unavailable.
 `Live paper PnL` uses paper fills against the latest chart close. `Sample validation` remains the deterministic validation-loop result.
 

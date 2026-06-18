@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 
     from dual_market_trader.live_models import LiveOrderResult, LivePaperExecutionResult
     from dual_market_trader.models import MarketPerformanceEntry, PerformanceLogEntry
+    from dual_market_trader.screener import ScreenedSymbol, ScreenerDecision
 
 
 def market_rows(latest: PerformanceLogEntry | None) -> str:
@@ -38,6 +39,16 @@ def live_rows(entries: Sequence[LiveOrderResult]) -> str:
     if not entries:
         return '<tr><td colspan="9" class="empty">No live executions logged yet.</td></tr>'
     return "\n".join(_live_row(entry) for entry in reversed(entries[-25:]))
+
+
+def screener_rows(entries: Sequence[ScreenerDecision]) -> str:
+    if not entries:
+        return '<tr><td colspan="10" class="empty">No screener decisions logged yet.</td></tr>'
+    return "\n".join(
+        _screener_row(entry.recorded_at, candidate)
+        for entry in reversed(entries[-10:])
+        for candidate in entry.candidates[:10]
+    )
 
 
 def _market_row(market: MarketPerformanceEntry) -> str:
@@ -127,6 +138,26 @@ def _live_row(entry: LiveOrderResult) -> str:
             f"<td>{escape(format_number(intent.price))}</td>",
             f"<td>{escape(order_id)}</td>",
             f'<td><span class="status met">{escape(entry.status.value)}</span></td>',
+            "</tr>",
+        ),
+    )
+
+
+def _screener_row(recorded_at: str, candidate: ScreenedSymbol) -> str:
+    status = "selected" if candidate.selected else "watch"
+    return "".join(
+        (
+            "<tr>",
+            f"<td>{escape(recorded_at)}</td>",
+            f"<td>{escape(candidate.market.value.upper())}</td>",
+            f"<td>{escape(candidate.symbol)}</td>",
+            f"<td>{escape(format_number(candidate.score))}</td>",
+            f"<td>{escape(format_number(candidate.latest_price))}</td>",
+            f"<td>{escape(format_pct(candidate.momentum_pct))}</td>",
+            f"<td>{escape(format_pct(candidate.breakout_pct))}</td>",
+            f"<td>{escape(format_number(candidate.volume_ratio))}</td>",
+            f'<td><span class="status {status}">{status}</span></td>',
+            f"<td>{escape(candidate.reason)}</td>",
             "</tr>",
         ),
     )
