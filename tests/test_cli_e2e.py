@@ -74,6 +74,38 @@ def test_run_once_cli_surface_reports_fallback_when_target_is_not_validated(
     assert '"selected_as_fallback": true' in report_text
 
 
+def test_run_paper_loop_cli_surface_appends_performance_log(tmp_path: Path) -> None:
+    runner = CliRunner()
+    performance_log = tmp_path / "performance-log.jsonl"
+
+    result = runner.invoke(
+        app,
+        [
+            "run-paper-loop",
+            "--markets",
+            "KR,US",
+            "--target-daily-return-pct",
+            "5.0",
+            "--sample",
+            "deterministic",
+            "--max-cycles",
+            "2",
+            "--interval-seconds",
+            "0",
+            "--evidence-dir",
+            str(tmp_path),
+            "--performance-log",
+            str(performance_log),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "paper_loop" in result.stdout
+    assert "performance_log" in result.stdout
+    assert performance_log.exists()
+    assert len(performance_log.read_text(encoding="utf-8").splitlines()) == 2
+
+
 def test_trade_live_cli_surface_refuses_without_credentials(tmp_path: Path) -> None:
     runner = CliRunner()
 
@@ -187,5 +219,6 @@ def test_dashboard_cli_surface_exposes_log_option() -> None:
     assert "--log" in result.stdout
     assert "--live-log" in result.stdout
     assert "--live-paper-log" in result.stdout
+    assert "--refresh-seconds" in result.stdout
     assert "--host" in result.stdout
     assert "--port" in result.stdout

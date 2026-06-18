@@ -68,6 +68,19 @@ uv run dual-market-paper-trader run-once \
 
 The bundled sample is intentionally local and deterministic. `--sample deterministic` is the only supported sample mode today.
 
+Start the live-refreshing paper performance loop:
+
+```bash
+uv run dual-market-paper-trader run-paper-loop \
+  --markets KR,US \
+  --target-daily-return-pct 5.0 \
+  --sample deterministic \
+  --max-cycles 10000 \
+  --interval-seconds 30 \
+  --evidence-dir .omo/evidence/realtime \
+  --performance-log .data/performance-log.jsonl
+```
+
 Start the WebUI dashboard:
 
 ```bash
@@ -76,7 +89,8 @@ uv run dual-market-paper-trader dashboard \
   --port 8765 \
   --log .data/performance-log.jsonl \
   --live-paper-log .data/live-paper-executions.jsonl \
-  --live-log .data/live-executions.jsonl
+  --live-log .data/live-executions.jsonl \
+  --refresh-seconds 5
 ```
 
 Open `http://127.0.0.1:8765`.
@@ -94,6 +108,9 @@ Open `http://127.0.0.1:8765`.
 
 - **Live-clock paper validation**
   `run-live-paper` uses the same order intent fields as the live path, runs on a real-time cycle, and writes only paper fills. It never places a brokerage order.
+
+- **Real-time paper performance loop**
+  `run-paper-loop` repeatedly runs the paper validation pipeline on a live-clock interval and appends `.data/performance-log.jsonl` for dashboard auto-refresh.
 
 - **Fail-closed live execution**
   `trade-live` and `run-live` exit nonzero and write no order artifact unless every live-order gate is present.
@@ -117,6 +134,7 @@ uv run dual-market-paper-trader run-live-paper \
 ```
 
 Each cycle appends to `.data/live-paper-executions.jsonl`. Broker credentials are not required.
+Run `run-paper-loop` in a separate process when the dashboard should refresh paper performance metrics as well as order-level paper fills.
 
 ## Live trading
 

@@ -64,6 +64,18 @@ h1 {
   color: var(--blue);
 }
 
+.header-actions {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.refresh {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -188,6 +200,10 @@ tr:last-child td {
   header {
     grid-template-columns: 1fr;
     align-items: start;
+  }
+
+  .header-actions {
+    justify-items: start;
   }
 
   h1 {

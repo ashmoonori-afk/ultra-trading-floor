@@ -24,6 +24,12 @@ Run live-clock paper validation before any live-order attempt:
 uv run dual-market-paper-trader run-live-paper --market KR --symbol 005930 --side buy --quantity 1 --price 71000 --max-cycles 3 --interval-seconds 30
 ```
 
+Run the live-refreshing paper performance loop when the dashboard should update paper performance in real time:
+
+```bash
+uv run dual-market-paper-trader run-paper-loop --markets KR,US --target-daily-return-pct 5.0 --sample deterministic --max-cycles 10000 --interval-seconds 30 --evidence-dir .omo/evidence/realtime --performance-log .data/performance-log.jsonl
+```
+
 Run a gated Toss live execution loop after all live credentials and confirmations are configured:
 
 ```bash
@@ -33,7 +39,9 @@ uv run dual-market-paper-trader run-live --market KR --symbol 005930 --side buy 
 Run the dashboard with both persistent logs:
 
 ```bash
-uv run dual-market-paper-trader dashboard --host 127.0.0.1 --port 8765 --log .data/performance-log.jsonl --live-paper-log .data/live-paper-executions.jsonl --live-log .data/live-executions.jsonl
+uv run dual-market-paper-trader dashboard --host 127.0.0.1 --port 8765 --log .data/performance-log.jsonl --live-paper-log .data/live-paper-executions.jsonl --live-log .data/live-executions.jsonl --refresh-seconds 5
 ```
+
+The dashboard auto-refreshes and reads append-only files for paper performance, real-time paper orders, and gated live executions.
 
 Runtime state stays under `.data/`. Evidence requested by QA can be written under `.omo/evidence/` or the workspace ULW evidence folder.

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from html import escape
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from dual_market_trader.dashboard_tables import (
     format_pct,
@@ -29,12 +30,24 @@ if TYPE_CHECKING:
 
 DEFAULT_LIVE_LOG_PATH = Path(".data/live-executions.jsonl")
 DEFAULT_LIVE_PAPER_LOG_PATH = Path(".data/live-paper-executions.jsonl")
+DEFAULT_REFRESH_SECONDS: Final = 5
+
+
+@dataclass(frozen=True, slots=True)
+class DashboardServerConfig:
+    host: str
+    port: int
+    log_path: Path
+    live_log_path: Path
+    live_paper_log_path: Path
+    refresh_seconds: int = DEFAULT_REFRESH_SECONDS
 
 
 def render_dashboard(
     log_path: Path,
     live_log_path: Path = DEFAULT_LIVE_LOG_PATH,
     live_paper_log_path: Path = DEFAULT_LIVE_PAPER_LOG_PATH,
+    refresh_seconds: int = DEFAULT_REFRESH_SECONDS,
 ) -> str:
     entries = read_performance_log(log_path)
     live_entries = read_live_execution_log(live_log_path)
@@ -47,27 +60,33 @@ def render_dashboard(
             "<head>",
             '  <meta charset="utf-8">',
             '  <meta name="viewport" content="width=device-width, initial-scale=1">',
+            f'  <meta http-equiv="refresh" content="{refresh_seconds}">',
             "  <title>Dual Market Paper Trader</title>",
             f"  <style>{_stylesheet()}</style>",
             "</head>",
             "<body>",
-            _dashboard_body(entries, latest, live_entries, live_paper_entries),
+            _dashboard_body(
+                entries,
+                latest,
+                live_entries,
+                live_paper_entries,
+                refresh_seconds,
+            ),
             "</body>",
             "</html>",
         ),
     )
 
 
-def serve_dashboard(
-    host: str,
-    port: int,
-    log_path: Path,
-    live_log_path: Path,
-    live_paper_log_path: Path,
-) -> None:
+def serve_dashboard(config: DashboardServerConfig) -> None:
     server = ThreadingHTTPServer(
-        (host, port),
-        _handler_for(log_path, live_log_path, live_paper_log_path),
+        (config.host, config.port),
+        _handler_for(
+            config.log_path,
+            config.live_log_path,
+            config.live_paper_log_path,
+            config.refresh_seconds,
+        ),
     )
     server.serve_forever()
 
@@ -76,13 +95,19 @@ def _handler_for(
     log_path: Path,
     live_log_path: Path,
     live_paper_log_path: Path,
+    refresh_seconds: int,
 ) -> type[BaseHTTPRequestHandler]:
     class DashboardHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
             if self.path not in {"/", "/index.html"}:
                 self.send_error(HTTPStatus.NOT_FOUND.value)
                 return
-            payload = render_dashboard(log_path, live_log_path, live_paper_log_path).encode("utf-8")
+            payload = render_dashboard(
+                log_path,
+                live_log_path,
+                live_paper_log_path,
+                refresh_seconds,
+            ).encode("utf-8")
             self.send_response(HTTPStatus.OK.value)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(payload)))
@@ -97,6 +122,7 @@ def _dashboard_body(
     latest: PerformanceLogEntry | None,
     live_entries: Sequence[LiveOrderResult],
     live_paper_entries: Sequence[LivePaperExecutionResult],
+    refresh_seconds: int,
 ) -> str:
     return "\n".join(
         (
@@ -104,9 +130,12 @@ def _dashboard_body(
             "    <header>",
             "      <div>",
             "        <h1>Dual Market Paper Trader</h1>",
-            '        <div class="subhead">KR and US paper validation dashboard</div>',
+            '        <div class="subhead">KR and US live-clock paper trading dashboard</div>',
             "      </div>",
-            '      <div class="mode">PAPER ONLY</div>',
+            '      <div class="header-actions">',
+            '        <div class="mode">PAPER ONLY</div>',
+            f'        <div class="refresh">Auto-refresh {refresh_seconds}s</div>',
+            "      </div>",
             "    </header>",
             _metrics(entries, latest, live_entries, live_paper_entries),
             _section(
@@ -115,7 +144,7 @@ def _dashboard_body(
                 market_rows(latest),
             ),
             _section(
-                "Persistent Performance Log",
+                "Paper Trading Performance",
                 (
                     "Recorded",
                     "Target",
@@ -136,7 +165,7 @@ def _dashboard_body(
                 pipeline_rows(entries),
             ),
             _section(
-                "Live Paper Validation Log",
+                "Real-Time Paper Orders",
                 ("Recorded", "Market", "Symbol", "Side", "Qty", "Fill", "Notional", "Note"),
                 live_paper_rows(live_paper_entries),
             ),

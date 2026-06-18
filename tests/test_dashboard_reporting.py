@@ -49,7 +49,9 @@ def test_dashboard_renders_persistent_performance_log(tmp_path: Path) -> None:
     html = render_dashboard(log_path)
 
     assert "Dual Market Paper Trader" in html
-    assert "Persistent Performance Log" in html
+    assert '<meta http-equiv="refresh" content="5">' in html
+    assert "Auto-refresh 5s" in html
+    assert "Paper Trading Performance" in html
     assert "PAPER ONLY" in html
     assert "KR" in html
     assert "US" in html
@@ -166,7 +168,7 @@ def test_dashboard_renders_live_paper_validation_log(tmp_path: Path) -> None:
 
     html = render_dashboard(performance_log, live_log, live_paper_log)
 
-    assert "Live Paper Validation Log" in html
+    assert "Real-Time Paper Orders" in html
     assert "paper fill only" in html
     assert "005930" in html
 
