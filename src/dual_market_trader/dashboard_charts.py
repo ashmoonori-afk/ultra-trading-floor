@@ -4,12 +4,15 @@ from dataclasses import dataclass
 from html import escape
 from typing import TYPE_CHECKING, Final
 
-from dual_market_trader.charting import TradeMarkerKind
+from dual_market_trader.chart_trades import TradeMarkerKind
+from dual_market_trader.charting import MarketDataSource
+from dual_market_trader.dashboard_tables import format_pct
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from dual_market_trader.charting import MarketMinuteChart, TradeMarker
+    from dual_market_trader.chart_trades import TradeMarker
+    from dual_market_trader.charting import MarketMinuteChart
     from dual_market_trader.models import Candle
 
 SVG_WIDTH: Final = 760
@@ -57,13 +60,31 @@ def _chart_card(chart: MarketMinuteChart) -> str:
             ),
             '          <div class="chart-head">',
             f"            <div><strong>{escape(market.upper())}</strong> {symbol}</div>",
-            '            <span class="interval">1 MIN</span>',
+            f'            <span class="interval">{escape(_source_label(chart))}</span>',
             "          </div>",
+            _chart_status(chart),
             _chart_svg(chart),
             _legend(chart),
             "        </article>",
         ),
     )
+
+
+def _chart_status(chart: MarketMinuteChart) -> str:
+    return "\n".join(
+        (
+            '          <div class="chart-status">',
+            f"            <span>{escape(chart.data_notice)}</span>",
+            f"            <strong>Live PnL {escape(format_pct(chart.live_return_pct))}</strong>",
+            "          </div>",
+        ),
+    )
+
+
+def _source_label(chart: MarketMinuteChart) -> str:
+    if chart.data_source is MarketDataSource.YAHOO:
+        return "YAHOO REAL 1M"
+    return "FALLBACK 1M"
 
 
 def _chart_svg(chart: MarketMinuteChart) -> str:
@@ -148,33 +169,39 @@ def _marker_svg(marker: TradeMarker, scale: ChartScale) -> str:
     label = escape(f"{marker.label} {_format_price(marker.price)}")
     klass = marker.kind.value
     label_x, anchor = _marker_label_position(x)
-    if marker.kind is TradeMarkerKind.ENTRY:
-        return "\n".join(
-            (
-                f'            <g class="trade-marker {klass}" data-marker-kind="{klass}">',
+    label_y = _marker_label_y(marker.kind, y)
+    match marker.kind:
+        case TradeMarkerKind.ENTRY:
+            return "\n".join(
                 (
-                    f'              <line x1="{x:.2f}" y1="{PLOT_TOP}" '
-                    f'x2="{x:.2f}" y2="{PLOT_BOTTOM}" />'
+                    f'            <g class="trade-marker {klass}" data-marker-kind="{klass}">',
+                    (
+                        f'              <line x1="{x:.2f}" y1="{PLOT_TOP}" '
+                        f'x2="{x:.2f}" y2="{PLOT_BOTTOM}" />'
+                    ),
+                    f'              <circle cx="{x:.2f}" cy="{y:.2f}" r="4.8" />',
+                    (
+                        f'              <text x="{label_x:.2f}" y="{label_y:.2f}" '
+                        f'text-anchor="{anchor}">{label}</text>'
+                    ),
+                    "            </g>",
                 ),
-                f'              <circle cx="{x:.2f}" cy="{y:.2f}" r="4.8" />',
+            )
+        case TradeMarkerKind.TARGET | TradeMarkerKind.STOP:
+            return "\n".join(
                 (
-                    f'              <text x="{label_x:.2f}" y="{y - 8:.2f}" '
-                    f'text-anchor="{anchor}">{label}</text>'
+                    f'            <g class="trade-marker {klass}" data-marker-kind="{klass}">',
+                    (
+                        f'              <line x1="{x:.2f}" y1="{y:.2f}" '
+                        f'x2="{PLOT_RIGHT}" y2="{y:.2f}" />'
+                    ),
+                    (
+                        f'              <text x="{label_x:.2f}" y="{label_y:.2f}" '
+                        f'text-anchor="{anchor}">{label}</text>'
+                    ),
+                    "            </g>",
                 ),
-                "            </g>",
-            ),
-        )
-    return "\n".join(
-        (
-            f'            <g class="trade-marker {klass}" data-marker-kind="{klass}">',
-            f'              <line x1="{x:.2f}" y1="{y:.2f}" x2="{PLOT_RIGHT}" y2="{y:.2f}" />',
-            (
-                f'              <text x="{label_x:.2f}" y="{y - 6:.2f}" '
-                f'text-anchor="{anchor}">{label}</text>'
-            ),
-            "            </g>",
-        ),
-    )
+            )
 
 
 def _legend(chart: MarketMinuteChart) -> str:
@@ -215,6 +242,16 @@ def _marker_label_position(x: float) -> tuple[float, str]:
     if x > PLOT_RIGHT - EDGE_LABEL_THRESHOLD:
         return x - 8, "end"
     return x + 8, "start"
+
+
+def _marker_label_y(kind: TradeMarkerKind, y: float) -> float:
+    match kind:
+        case TradeMarkerKind.ENTRY:
+            return min(max(PLOT_TOP + 12, y - 18), PLOT_BOTTOM - 34)
+        case TradeMarkerKind.TARGET:
+            return min(max(PLOT_TOP + 26, y - 6), PLOT_BOTTOM - 18)
+        case TradeMarkerKind.STOP:
+            return min(max(PLOT_TOP + 40, y + 14), PLOT_BOTTOM + 12)
 
 
 def _format_price(value: float) -> str:

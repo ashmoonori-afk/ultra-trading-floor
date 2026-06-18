@@ -43,6 +43,7 @@ uv run dual-market-paper-trader dashboard --host 127.0.0.1 --port 8765 --log .da
 ```
 
 The dashboard auto-refreshes and reads append-only files for paper performance, real-time paper orders, and gated live executions.
-It renders deterministic 1-minute market charts for the active KR/US paper symbols and overlays the latest paper entry, target exit, and stop loss marker for each symbol.
+The served dashboard fetches Yahoo Finance 1-minute candles for the active KR/US paper symbols and overlays the latest paper entry, target exit, and stop loss marker for each symbol. The chart source label reads `YAHOO REAL 1M` when real candles are present and `FALLBACK 1M` only when the real fetch is unavailable.
+`Live paper PnL` uses paper fills against the latest chart close. `Sample validation` remains the deterministic validation-loop result.
 
 Runtime state stays under `.data/`. Evidence requested by QA can be written under `.omo/evidence/` or the workspace ULW evidence folder.

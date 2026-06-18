@@ -245,6 +245,19 @@ tr:last-child td {
   color: var(--terminal-orange);
 }
 
+.chart-status {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.chart-status strong {
+  color: var(--good);
+}
+
 .minute-chart {
   display: block;
   width: 100%;

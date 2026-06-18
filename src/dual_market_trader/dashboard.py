@@ -18,6 +18,7 @@ from dual_market_trader.dashboard_tables import (
     pipeline_rows,
     run_rows,
 )
+from dual_market_trader.market_data import YahooFinanceMarketDataProvider
 from dual_market_trader.reporting import (
     read_live_execution_log,
     read_live_paper_execution_log,
@@ -27,7 +28,7 @@ from dual_market_trader.reporting import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from dual_market_trader.charting import MarketMinuteChart
+    from dual_market_trader.charting import MarketDataProvider, MarketMinuteChart
     from dual_market_trader.live_models import LiveOrderResult, LivePaperExecutionResult
     from dual_market_trader.models import PerformanceLogEntry
 
@@ -61,12 +62,13 @@ def render_dashboard(
     live_log_path: Path = DEFAULT_LIVE_LOG_PATH,
     live_paper_log_path: Path = DEFAULT_LIVE_PAPER_LOG_PATH,
     refresh_seconds: int = DEFAULT_REFRESH_SECONDS,
+    market_data_provider: MarketDataProvider | None = None,
 ) -> str:
     entries = read_performance_log(log_path)
     live_entries = read_live_execution_log(live_log_path)
     live_paper_entries = read_live_paper_execution_log(live_paper_log_path)
     latest = entries[-1] if entries else None
-    charts = build_market_minute_charts(entries, live_paper_entries)
+    charts = build_market_minute_charts(entries, live_paper_entries, market_data_provider)
     return "\n".join(
         (
             "<!doctype html>",
@@ -114,6 +116,8 @@ def _handler_for(
     live_paper_log_path: Path,
     refresh_seconds: int,
 ) -> type[BaseHTTPRequestHandler]:
+    market_data_provider = YahooFinanceMarketDataProvider()
+
     class DashboardHandler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
             if self.path not in {"/", "/index.html"}:
@@ -124,6 +128,7 @@ def _handler_for(
                 live_log_path,
                 live_paper_log_path,
                 refresh_seconds,
+                market_data_provider,
             ).encode("utf-8")
             self.send_response(HTTPStatus.OK.value)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -153,6 +158,7 @@ def _dashboard_body(state: DashboardViewState) -> str:
                 state.latest,
                 state.live_entries,
                 state.live_paper_entries,
+                state.charts,
             ),
             render_market_charts(state.charts),
             _section(

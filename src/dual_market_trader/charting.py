@@ -1,17 +1,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from enum import StrEnum, unique
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Protocol
 
-from dual_market_trader.live_models import LivePaperExecutionResult, OrderSide
+from dual_market_trader.chart_trades import (
+    TradeMarker,
+    build_trade_markers,
+    compute_live_pnl,
+    recorded_at_epoch,
+)
 from dual_market_trader.models import Candle, Market, PerformanceLogEntry
 from dual_market_trader.sample_data import symbol_for_market
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from dual_market_trader.live_models import LivePaperExecutionResult
 
 CHART_MINUTES: Final = 60
 DEFAULT_TARGET_PCT: Final = 5.0
@@ -24,19 +30,12 @@ DEFAULT_REFERENCE_PRICES: Final = MappingProxyType(
         Market.US: 116.2,
     },
 )
-SIDE_EXIT_DIRECTIONS: Final = MappingProxyType(
-    {
-        OrderSide.BUY: (1.0, -1.0),
-        OrderSide.SELL: (-1.0, 1.0),
-    },
-)
 
 
 @unique
-class TradeMarkerKind(StrEnum):
-    ENTRY = "entry"
-    TARGET = "target"
-    STOP = "stop"
+class MarketDataSource(StrEnum):
+    YAHOO = "yahoo"
+    GENERATED = "generated"
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,12 +45,16 @@ class ChartSpec:
 
 
 @dataclass(frozen=True, slots=True)
-class TradeMarker:
-    kind: TradeMarkerKind
-    label: str
-    timestamp: int
-    price: float
-    quantity: float
+class MarketMinuteSeries:
+    market: Market
+    symbol: str
+    candles: tuple[Candle, ...]
+    source: MarketDataSource
+    fetched_at: str
+
+
+class MarketDataProvider(Protocol):
+    def load_minute_candles(self, specs: Sequence[ChartSpec]) -> tuple[MarketMinuteSeries, ...]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,17 +65,34 @@ class MarketMinuteChart:
     markers: tuple[TradeMarker, ...]
     target_daily_return_pct: float
     stop_loss_pct: float
+    data_source: MarketDataSource
+    data_notice: str
+    latest_price: float
+    live_exposure: float
+    live_pnl: float
+    live_return_pct: float | None
 
 
 def build_market_minute_charts(
     performance_entries: Sequence[PerformanceLogEntry],
     live_paper_entries: Sequence[LivePaperExecutionResult],
+    market_data_provider: MarketDataProvider | None = None,
 ) -> tuple[MarketMinuteChart, ...]:
     latest = performance_entries[-1] if performance_entries else None
     target_pct = latest.target_daily_return_pct if latest is not None else DEFAULT_TARGET_PCT
     specs = _chart_specs(latest, live_paper_entries)
+    series = (
+        market_data_provider.load_minute_candles(specs) if market_data_provider is not None else ()
+    )
     return tuple(
-        _build_chart(spec, live_paper_entries, target_pct, DEFAULT_STOP_LOSS_PCT) for spec in specs
+        _build_chart(
+            spec,
+            live_paper_entries,
+            target_pct,
+            DEFAULT_STOP_LOSS_PCT,
+            _matching_series(spec, series),
+        )
+        for spec in specs
     )
 
 
@@ -81,17 +101,49 @@ def _build_chart(
     live_paper_entries: Sequence[LivePaperExecutionResult],
     target_pct: float,
     stop_loss_pct: float,
+    series: MarketMinuteSeries | None,
 ) -> MarketMinuteChart:
     entries = _matching_entries(spec, live_paper_entries)
+    if series is not None and series.candles:
+        candles = series.candles
+        latest_price = candles[-1].close
+        live_exposure, live_pnl, live_return_pct = compute_live_pnl(entries, latest_price)
+        return MarketMinuteChart(
+            market=spec.market,
+            symbol=spec.symbol,
+            candles=candles,
+            markers=build_trade_markers(
+                entries,
+                target_pct,
+                stop_loss_pct,
+                candles[-1].timestamp,
+            ),
+            target_daily_return_pct=target_pct,
+            stop_loss_pct=stop_loss_pct,
+            data_source=series.source,
+            data_notice=f"{series.source.value} real 1m fetched {series.fetched_at}",
+            latest_price=latest_price,
+            live_exposure=live_exposure,
+            live_pnl=live_pnl,
+            live_return_pct=live_return_pct,
+        )
     end_timestamp = _chart_end_timestamp(entries)
     reference_price = _reference_price(spec.market, entries)
+    generated = _minute_candles(reference_price, end_timestamp)
+    live_exposure, live_pnl, live_return_pct = compute_live_pnl(entries, generated[-1].close)
     return MarketMinuteChart(
         market=spec.market,
         symbol=spec.symbol,
-        candles=_minute_candles(reference_price, end_timestamp),
-        markers=_trade_markers(entries, target_pct, stop_loss_pct, end_timestamp),
+        candles=generated,
+        markers=build_trade_markers(entries, target_pct, stop_loss_pct, end_timestamp),
         target_daily_return_pct=target_pct,
         stop_loss_pct=stop_loss_pct,
+        data_source=MarketDataSource.GENERATED,
+        data_notice="generated fallback; live market data unavailable",
+        latest_price=generated[-1].close,
+        live_exposure=live_exposure,
+        live_pnl=live_pnl,
+        live_return_pct=live_return_pct,
     )
 
 
@@ -136,10 +188,22 @@ def _matching_entries(
     )
 
 
+def _matching_series(
+    spec: ChartSpec,
+    series: Sequence[MarketMinuteSeries],
+) -> MarketMinuteSeries | None:
+    for item in series:
+        if item.market == spec.market and _canonical_symbol(item.symbol) == _canonical_symbol(
+            spec.symbol
+        ):
+            return item
+    return None
+
+
 def _chart_end_timestamp(entries: Sequence[LivePaperExecutionResult]) -> int:
     if not entries:
         return DEFAULT_END_TIMESTAMP
-    return max(_recorded_at_epoch(entry.recorded_at, DEFAULT_END_TIMESTAMP) for entry in entries)
+    return max(recorded_at_epoch(entry.recorded_at, DEFAULT_END_TIMESTAMP) for entry in entries)
 
 
 def _reference_price(
@@ -178,73 +242,6 @@ def _minute_close(reference_price: float, index: int) -> float:
     trend = (index - (CHART_MINUTES - 1)) * 0.00018
     wave = ((index % 9) - 4) * 0.00055
     return max(0.01, reference_price * (1 + trend + wave))
-
-
-def _trade_markers(
-    entries: Sequence[LivePaperExecutionResult],
-    target_pct: float,
-    stop_loss_pct: float,
-    fallback_timestamp: int,
-) -> tuple[TradeMarker, ...]:
-    markers: list[TradeMarker] = []
-    for entry in entries[-1:]:
-        timestamp = _recorded_at_epoch(entry.recorded_at, fallback_timestamp)
-        markers.extend(_markers_for_entry(entry, timestamp, target_pct, stop_loss_pct))
-    return tuple(markers)
-
-
-def _markers_for_entry(
-    entry: LivePaperExecutionResult,
-    timestamp: int,
-    target_pct: float,
-    stop_loss_pct: float,
-) -> tuple[TradeMarker, TradeMarker, TradeMarker]:
-    target_price, stop_price = _exit_prices(entry, target_pct, stop_loss_pct)
-    return (
-        TradeMarker(
-            kind=TradeMarkerKind.ENTRY,
-            label="Entry",
-            timestamp=timestamp,
-            price=entry.fill_price,
-            quantity=entry.intent.quantity,
-        ),
-        TradeMarker(
-            kind=TradeMarkerKind.TARGET,
-            label="Target Exit",
-            timestamp=timestamp,
-            price=target_price,
-            quantity=entry.intent.quantity,
-        ),
-        TradeMarker(
-            kind=TradeMarkerKind.STOP,
-            label="Stop Loss",
-            timestamp=timestamp,
-            price=stop_price,
-            quantity=entry.intent.quantity,
-        ),
-    )
-
-
-def _exit_prices(
-    entry: LivePaperExecutionResult,
-    target_pct: float,
-    stop_loss_pct: float,
-) -> tuple[float, float]:
-    target_direction, stop_direction = SIDE_EXIT_DIRECTIONS[entry.intent.side]
-    return (
-        entry.fill_price * (1 + target_direction * target_pct / 100),
-        entry.fill_price * (1 + stop_direction * stop_loss_pct / 100),
-    )
-
-
-def _recorded_at_epoch(recorded_at: str, fallback: int) -> int:
-    try:
-        parsed = datetime.fromisoformat(recorded_at)
-    except ValueError:
-        return fallback
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return int(parsed.timestamp())
 
 
 def _canonical_symbol(symbol: str) -> str:

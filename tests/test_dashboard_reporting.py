@@ -53,6 +53,8 @@ def test_dashboard_renders_persistent_performance_log(tmp_path: Path) -> None:
     assert "Auto-refresh 5s" in html
     assert "Paper Trading Performance" in html
     assert "PAPER ONLY" in html
+    assert "Live paper PnL" in html
+    assert "Sample validation" in html
     assert "KR" in html
     assert "US" in html
     assert "11.43%" in html
