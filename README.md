@@ -32,7 +32,8 @@ Meet **Ultra Trading Floor**, a separate dual-market trading lab for testing KR 
 - Records every paper run to `.data/paper-runs.jsonl` and `.data/performance-log.jsonl`.
 - Separates live-clock paper fills from real live orders with `.data/live-paper-executions.jsonl`.
 - Keeps successful real live executions in `.data/live-executions.jsonl`.
-- Serves a local dashboard for paper performance, validation status, live-paper fills, and live execution history.
+- Serves a terminal-style local dashboard for paper performance, market minute charts, live-paper fills, and live execution history.
+- Marks the latest paper entry, target exit, and stop loss on each market chart.
 - Reuses the existing Toss-style live-order shape: auth status, preview, confirm token, then place.
 - Refuses live orders by default when credentials, risk confirmation, or Toss permission state are missing.
 
@@ -111,6 +112,9 @@ Open `http://127.0.0.1:8765`.
 
 - **Real-time paper performance loop**
   `run-paper-loop` repeatedly runs the paper validation pipeline on a live-clock interval and appends `.data/performance-log.jsonl` for dashboard auto-refresh.
+
+- **Market minute charts**
+  The dashboard renders deterministic 1-minute KR/US chart data around the active paper symbols and overlays the latest paper entry, target exit, and stop loss levels.
 
 - **Fail-closed live execution**
   `trade-live` and `run-live` exit nonzero and write no order artifact unless every live-order gate is present.

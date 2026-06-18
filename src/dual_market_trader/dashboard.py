@@ -8,8 +8,10 @@ from importlib.resources import files
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
+from dual_market_trader.charting import build_market_minute_charts
+from dual_market_trader.dashboard_charts import render_market_charts
+from dual_market_trader.dashboard_metrics import render_metrics
 from dual_market_trader.dashboard_tables import (
-    format_pct,
     live_paper_rows,
     live_rows,
     market_rows,
@@ -25,6 +27,7 @@ from dual_market_trader.reporting import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from dual_market_trader.charting import MarketMinuteChart
     from dual_market_trader.live_models import LiveOrderResult, LivePaperExecutionResult
     from dual_market_trader.models import PerformanceLogEntry
 
@@ -43,6 +46,16 @@ class DashboardServerConfig:
     refresh_seconds: int = DEFAULT_REFRESH_SECONDS
 
 
+@dataclass(frozen=True, slots=True)
+class DashboardViewState:
+    entries: Sequence[PerformanceLogEntry]
+    latest: PerformanceLogEntry | None
+    live_entries: Sequence[LiveOrderResult]
+    live_paper_entries: Sequence[LivePaperExecutionResult]
+    charts: Sequence[MarketMinuteChart]
+    refresh_seconds: int
+
+
 def render_dashboard(
     log_path: Path,
     live_log_path: Path = DEFAULT_LIVE_LOG_PATH,
@@ -53,6 +66,7 @@ def render_dashboard(
     live_entries = read_live_execution_log(live_log_path)
     live_paper_entries = read_live_paper_execution_log(live_paper_log_path)
     latest = entries[-1] if entries else None
+    charts = build_market_minute_charts(entries, live_paper_entries)
     return "\n".join(
         (
             "<!doctype html>",
@@ -66,11 +80,14 @@ def render_dashboard(
             "</head>",
             "<body>",
             _dashboard_body(
-                entries,
-                latest,
-                live_entries,
-                live_paper_entries,
-                refresh_seconds,
+                DashboardViewState(
+                    entries=entries,
+                    latest=latest,
+                    live_entries=live_entries,
+                    live_paper_entries=live_paper_entries,
+                    charts=charts,
+                    refresh_seconds=refresh_seconds,
+                ),
             ),
             "</body>",
             "</html>",
@@ -117,31 +134,31 @@ def _handler_for(
     return DashboardHandler
 
 
-def _dashboard_body(
-    entries: Sequence[PerformanceLogEntry],
-    latest: PerformanceLogEntry | None,
-    live_entries: Sequence[LiveOrderResult],
-    live_paper_entries: Sequence[LivePaperExecutionResult],
-    refresh_seconds: int,
-) -> str:
+def _dashboard_body(state: DashboardViewState) -> str:
     return "\n".join(
         (
-            "  <main>",
+            '  <main class="terminal-screen">',
             "    <header>",
             "      <div>",
             "        <h1>Dual Market Paper Trader</h1>",
-            '        <div class="subhead">KR and US live-clock paper trading dashboard</div>',
+            '        <div class="subhead">KR and US live-clock paper trading terminal</div>',
             "      </div>",
             '      <div class="header-actions">',
             '        <div class="mode">PAPER ONLY</div>',
-            f'        <div class="refresh">Auto-refresh {refresh_seconds}s</div>',
+            f'        <div class="refresh">Auto-refresh {state.refresh_seconds}s</div>',
             "      </div>",
             "    </header>",
-            _metrics(entries, latest, live_entries, live_paper_entries),
+            render_metrics(
+                state.entries,
+                state.latest,
+                state.live_entries,
+                state.live_paper_entries,
+            ),
+            render_market_charts(state.charts),
             _section(
                 "Latest Market Results",
                 ("Market", "Symbol", "Daily return", "Max drawdown", "Trades"),
-                market_rows(latest),
+                market_rows(state.latest),
             ),
             _section(
                 "Paper Trading Performance",
@@ -157,17 +174,17 @@ def _dashboard_body(
                     "Iterations",
                     "Markets",
                 ),
-                run_rows(entries),
+                run_rows(state.entries),
             ),
             _section(
                 "Strategy Pipeline",
                 ("Recorded", "Stages", "ML Score", "Optimal Strategy", "Validation"),
-                pipeline_rows(entries),
+                pipeline_rows(state.entries),
             ),
             _section(
                 "Real-Time Paper Orders",
                 ("Recorded", "Market", "Symbol", "Side", "Qty", "Fill", "Notional", "Note"),
-                live_paper_rows(live_paper_entries),
+                live_paper_rows(state.live_paper_entries),
             ),
             _section(
                 "Live Execution Log",
@@ -182,7 +199,7 @@ def _dashboard_body(
                     "Order",
                     "Status",
                 ),
-                live_rows(live_entries),
+                live_rows(state.live_entries),
             ),
             "  </main>",
         ),
@@ -213,51 +230,5 @@ def _header_cells(headers: tuple[str, ...]) -> str:
     return "".join(f"<th>{escape(header)}</th>" for header in headers)
 
 
-def _metrics(
-    entries: Sequence[PerformanceLogEntry],
-    latest: PerformanceLogEntry | None,
-    live_entries: Sequence[LiveOrderResult],
-    live_paper_entries: Sequence[LivePaperExecutionResult],
-) -> str:
-    status = "Met" if latest is not None and latest.target_met else "Open"
-    status_tone = "good" if latest is not None and latest.target_met else "watch"
-    validation = latest.validation_status.value if latest is not None else "none"
-    validation_tone = "good" if validation == "pass" else "watch"
-    return "\n".join(
-        (
-            '<div class="metrics">',
-            _metric("Latest return", format_pct(_latest_return(latest)), "good"),
-            _metric("Target status", status, status_tone),
-            _metric("Validation", validation, validation_tone),
-            _metric("Logged runs", str(len(entries)), "blue"),
-            _metric("Live paper fills", str(len(live_paper_entries)), "blue"),
-            _metric("Live orders", str(len(live_entries)), "blue"),
-            _metric("Last run", _short_recorded_at(latest), "neutral"),
-            "</div>",
-        ),
-    )
-
-
-def _metric(label: str, value: str, tone: str) -> str:
-    return "".join(
-        (
-            f'<div class="metric {escape(tone)}">',
-            f'<div class="label">{escape(label)}</div>',
-            f'<div class="value">{escape(value)}</div>',
-            "</div>",
-        ),
-    )
-
-
 def _stylesheet() -> str:
     return files("dual_market_trader").joinpath("dashboard.css").read_text(encoding="utf-8")
-
-
-def _latest_return(entry: PerformanceLogEntry | None) -> float | None:
-    return entry.aggregate_daily_return_pct if entry is not None else None
-
-
-def _short_recorded_at(entry: PerformanceLogEntry | None) -> str:
-    if entry is None:
-        return "No runs"
-    return entry.recorded_at[:16].replace("T", " ")

@@ -43,5 +43,6 @@ uv run dual-market-paper-trader dashboard --host 127.0.0.1 --port 8765 --log .da
 ```
 
 The dashboard auto-refreshes and reads append-only files for paper performance, real-time paper orders, and gated live executions.
+It renders deterministic 1-minute market charts for the active KR/US paper symbols and overlays the latest paper entry, target exit, and stop loss marker for each symbol.
 
 Runtime state stays under `.data/`. Evidence requested by QA can be written under `.omo/evidence/` or the workspace ULW evidence folder.
