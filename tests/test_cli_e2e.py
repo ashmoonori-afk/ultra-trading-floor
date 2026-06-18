@@ -1,8 +1,17 @@
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
+from dual_market_trader import live_paper_cli
 from dual_market_trader.cli import app
+from dual_market_trader.models import Market
+
+
+class _FakeMarketDataProvider:
+    def latest_price(self, market: Market, symbol: str) -> float | None:
+        _ = (market, symbol)
+        return 354500
 
 
 def test_run_once_cli_surface_accepts_target_options(tmp_path: Path) -> None:
@@ -171,8 +180,12 @@ def test_run_live_cli_surface_refuses_without_credentials(tmp_path: Path) -> Non
     assert not any(tmp_path.iterdir())
 
 
-def test_run_live_paper_cli_surface_logs_without_credentials(tmp_path: Path) -> None:
+def test_run_live_paper_cli_surface_logs_without_credentials(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     runner = CliRunner()
+    monkeypatch.setattr(live_paper_cli, "YahooFinanceMarketDataProvider", _FakeMarketDataProvider)
 
     result = runner.invoke(
         app,
@@ -206,8 +219,13 @@ def test_run_live_paper_cli_surface_logs_without_credentials(tmp_path: Path) -> 
     live_paper_log = tmp_path / "live-paper-executions.jsonl"
     assert result.exit_code == 0
     assert "live_paper" in result.stdout
+    assert "'latest_fill_price': 354500.0" in result.stdout
     assert live_paper_log.exists()
-    assert len(live_paper_log.read_text(encoding="utf-8").splitlines()) == 2
+    entries = live_paper_log.read_text(encoding="utf-8").splitlines()
+    assert len(entries) == 2
+    assert '"price":71000.0' in entries[-1]
+    assert '"fill_price":354500.0' in entries[-1]
+    assert '"notional":354500.0' in entries[-1]
 
 
 def test_dashboard_cli_surface_exposes_log_option() -> None:

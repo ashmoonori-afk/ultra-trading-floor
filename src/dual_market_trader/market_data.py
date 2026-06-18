@@ -85,6 +85,12 @@ class YahooFinanceMarketDataProvider:
                     series.append(loaded)
             return tuple(series)
 
+    def latest_price(self, market: Market, symbol: str) -> float | None:
+        loaded = self.load_minute_candles((ChartSpec(market=market, symbol=symbol),))
+        if not loaded or not loaded[0].candles:
+            return None
+        return loaded[0].candles[-1].close
+
     def _load_one(self, client: httpx2.Client, spec: ChartSpec) -> MarketMinuteSeries | None:
         yahoo_symbol = _yahoo_symbol(spec)
         try:

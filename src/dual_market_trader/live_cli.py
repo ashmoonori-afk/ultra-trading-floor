@@ -7,17 +7,18 @@ from rich.console import Console
 
 from dual_market_trader.execution import (
     LiveExecutionConfig,
-    LivePaperExecutionConfig,
     run_live_execution_loop,
-    run_live_paper_execution_loop,
 )
 from dual_market_trader.live import LiveTradingDisabledError, require_live_trading_enabled
 from dual_market_trader.live_models import LiveOrderIntent, OrderSide, OrderType
+from dual_market_trader.live_paper_cli import (
+    LivePaperCommand,
+    execute_live_paper_command,
+)
 from dual_market_trader.models import Market
 from dual_market_trader.toss import TossBrokerError, TossCtlBroker, TossCtlConfig
 
 DEFAULT_LIVE_EXECUTION_LOG: Final = Path(".data/live-executions.jsonl")
-DEFAULT_LIVE_PAPER_EXECUTION_LOG: Final = Path(".data/live-paper-executions.jsonl")
 
 
 def register_live_commands(app: typer.Typer, console: Console) -> None:
@@ -79,7 +80,7 @@ def register_live_commands(app: typer.Typer, console: Console) -> None:
     def run_live_paper(
         symbol: Annotated[str, typer.Option("--symbol")],
         quantity: Annotated[float, typer.Option("--quantity", min=0.000001)],
-        price: Annotated[float, typer.Option("--price", min=0.000001)],
+        price: Annotated[float | None, typer.Option("--price", min=0.000001)] = None,
         market: Annotated[str, typer.Option("--market")] = "KR",
         side: Annotated[str, typer.Option("--side")] = "buy",
         max_cycles: Annotated[int, typer.Option("--max-cycles", min=1, max=10_000)] = 1,
@@ -89,37 +90,19 @@ def register_live_commands(app: typer.Typer, console: Console) -> None:
             typer.Option("--evidence-dir", file_okay=False),
         ] = None,
     ) -> None:
-        intent = LiveOrderIntent(
-            market=_parse_market_or_exit(console, market),
+        market_value = _parse_market_or_exit(console, market)
+        side_value = _parse_side_or_exit(console, side)
+        command = LivePaperCommand(
+            market=market_value,
             symbol=symbol,
-            side=_parse_side_or_exit(console, side),
+            side=side_value,
             quantity=quantity,
             price=price,
-            order_type=OrderType.LIMIT,
+            max_cycles=max_cycles,
+            interval_seconds=interval_seconds,
+            evidence_dir=evidence_dir,
         )
-        live_paper_log_path = (
-            evidence_dir / "live-paper-executions.jsonl"
-            if evidence_dir is not None
-            else DEFAULT_LIVE_PAPER_EXECUTION_LOG
-        )
-        results = run_live_paper_execution_loop(
-            LivePaperExecutionConfig(
-                intent=intent,
-                log_path=live_paper_log_path,
-                max_cycles=max_cycles,
-                interval_seconds=interval_seconds,
-            ),
-        )
-        latest = results[-1]
-        console.print(
-            {
-                "mode": "live_paper",
-                "paper_fills": len(results),
-                "latest_symbol": latest.intent.symbol,
-                "latest_notional": latest.notional,
-                "live_paper_execution_log": str(live_paper_log_path),
-            },
-        )
+        execute_live_paper_command(console, command)
 
     _ = (trade_live, run_live, run_live_paper)
 

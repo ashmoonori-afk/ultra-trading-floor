@@ -108,7 +108,7 @@ Open `http://127.0.0.1:8765`.
   `validation_status=fallback` means no candidate passed every gate. The selected fallback is analysis evidence only and keeps `target_met=false`.
 
 - **Live-clock paper validation**
-  `run-live-paper` uses the same order intent fields as the live path, runs on a real-time cycle, and writes only paper fills. It never places a brokerage order.
+  `run-live-paper` uses the same order intent fields as the live path, but fills paper orders from the latest Yahoo Finance 1-minute close. It never places a brokerage order.
 
 - **Real-time paper performance loop**
   `run-paper-loop` repeatedly runs the paper validation pipeline on a live-clock interval and appends `.data/performance-log.jsonl` for dashboard auto-refresh.
@@ -135,12 +135,12 @@ uv run dual-market-paper-trader run-live-paper \
   --symbol 005930 \
   --side buy \
   --quantity 1 \
-  --price 71000 \
   --max-cycles 3 \
   --interval-seconds 30
 ```
 
 Each cycle appends to `.data/live-paper-executions.jsonl`. Broker credentials are not required.
+`--price` is optional for `run-live-paper`; if provided, it is logged as the requested reference price while `fill_price` still comes from the latest market close. If the current market price cannot be fetched, the command exits nonzero instead of filling at the requested price.
 Run `run-paper-loop` in a separate process when the dashboard should refresh paper performance metrics as well as order-level paper fills.
 
 ## Live trading
@@ -153,7 +153,7 @@ uv run dual-market-paper-trader run-live \
   --symbol 005930 \
   --side buy \
   --quantity 1 \
-  --price 71000 \
+  --price <LIMIT_PRICE> \
   --max-cycles 1 \
   --interval-seconds 30 \
   --confirm-risk
@@ -168,7 +168,7 @@ The command still refuses to place an order unless all of the following are true
 - `--confirm-risk` is present
 - `tossctl` is installed and authenticated
 
-`--price` is required for `trade-live`, `run-live`, and `run-live-paper`.
+`--price` is required for `trade-live` and `run-live`. It is optional for `run-live-paper`.
 
 ## Built with
 
@@ -194,7 +194,7 @@ uv run dual-market-paper-trader run-live \
   --symbol 005930 \
   --side buy \
   --quantity 1 \
-  --price 71000 \
+  --price <LIMIT_PRICE> \
   --max-cycles 1
 ```
 

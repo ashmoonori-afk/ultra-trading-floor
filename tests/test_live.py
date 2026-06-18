@@ -4,6 +4,7 @@ from pathlib import Path
 from dual_market_trader.execution import (
     LiveExecutionConfig,
     LivePaperExecutionConfig,
+    LivePaperPriceProvider,
     run_live_execution_loop,
     run_live_paper_execution_loop,
 )
@@ -150,6 +151,15 @@ class _PlacedBroker:
         return self.result
 
 
+@dataclass(frozen=True, slots=True)
+class _StaticPaperPriceProvider:
+    price: float
+
+    def latest_price(self, intent: LiveOrderIntent) -> float | None:
+        _ = intent
+        return self.price
+
+
 def test_live_execution_loop_persists_append_only_order_log(tmp_path: Path) -> None:
     intent = LiveOrderIntent(
         market=Market.US,
@@ -206,3 +216,34 @@ def test_live_paper_execution_loop_persists_without_broker_credentials(tmp_path:
     assert entries == results
     assert entries[-1].notional == 213000
     assert entries[-1].note == "paper fill only"
+
+
+def test_live_paper_execution_loop_uses_market_price_when_provider_supplied(
+    tmp_path: Path,
+) -> None:
+    intent = LiveOrderIntent(
+        market=Market.KR,
+        symbol="005930",
+        side=OrderSide.BUY,
+        quantity=2,
+        price=71000,
+        order_type=OrderType.LIMIT,
+    )
+    price_provider: LivePaperPriceProvider = _StaticPaperPriceProvider(price=354500)
+    log_path = tmp_path / "live-paper-executions.jsonl"
+
+    results = run_live_paper_execution_loop(
+        LivePaperExecutionConfig(
+            intent=intent,
+            log_path=log_path,
+            max_cycles=1,
+            interval_seconds=0,
+        ),
+        price_provider=price_provider,
+    )
+
+    entry = results[-1]
+    assert entry.intent.price == 71000
+    assert entry.fill_price == 354500
+    assert entry.notional == 709000
+    assert entry.note == "paper fill at latest market price; requested price 71,000"

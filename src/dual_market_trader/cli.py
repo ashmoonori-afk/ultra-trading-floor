@@ -10,11 +10,11 @@ from dual_market_trader.dashboard import DashboardServerConfig, serve_dashboard
 from dual_market_trader.improvement import run_improvement_loop
 from dual_market_trader.live_cli import (
     DEFAULT_LIVE_EXECUTION_LOG,
-    DEFAULT_LIVE_PAPER_EXECUTION_LOG,
     UnsupportedMarketError,
     parse_market,
     register_live_commands,
 )
+from dual_market_trader.live_paper_cli import DEFAULT_LIVE_PAPER_EXECUTION_LOG
 from dual_market_trader.models import Market, PerformanceLogEntry, RunConfig, ValidationReport
 from dual_market_trader.reporting import append_performance_log, append_run_log, write_report
 

@@ -21,8 +21,10 @@ uv run dual-market-paper-trader trade-live --market KR --symbol 005930.KS --side
 Run live-clock paper validation before any live-order attempt:
 
 ```bash
-uv run dual-market-paper-trader run-live-paper --market KR --symbol 005930 --side buy --quantity 1 --price 71000 --max-cycles 3 --interval-seconds 30
+uv run dual-market-paper-trader run-live-paper --market KR --symbol 005930 --side buy --quantity 1 --max-cycles 3 --interval-seconds 30
 ```
+
+`run-live-paper` fetches the latest Yahoo Finance 1-minute close for paper fills. `--price` is optional; when present, it is only a requested reference price in the log, not the paper fill price. The command exits nonzero if the market price cannot be fetched.
 
 Run the live-refreshing paper performance loop when the dashboard should update paper performance in real time:
 
@@ -33,7 +35,7 @@ uv run dual-market-paper-trader run-paper-loop --markets KR,US --target-daily-re
 Run a gated Toss live execution loop after all live credentials and confirmations are configured:
 
 ```bash
-uv run dual-market-paper-trader run-live --market KR --symbol 005930 --side buy --quantity 1 --price 71000 --max-cycles 1 --interval-seconds 30 --confirm-risk
+uv run dual-market-paper-trader run-live --market KR --symbol 005930 --side buy --quantity 1 --price <LIMIT_PRICE> --max-cycles 1 --interval-seconds 30 --confirm-risk
 ```
 
 Run the dashboard with both persistent logs:
