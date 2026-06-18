@@ -20,6 +20,78 @@ class StrategyKind(StrEnum):
     BUY_HOLD = "buy_hold"
 
 
+@unique
+class ValidationStatus(StrEnum):
+    PASSED = "pass"
+    FALLBACK = "fallback"
+    FAIL = "fail"
+    LEGACY = "legacy"
+
+
+PipelineStage = Literal[
+    "validation",
+    "modification",
+    "evolution",
+    "ml_scoring",
+    "optimal_selection",
+]
+
+
+class CandidateLineage(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    candidate_id: str
+    parent_id: str | None
+    generation: int = Field(ge=0)
+    mutation_reason: str
+
+
+class PipelineCandidateReport(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    rank: int = Field(ge=1)
+    candidate_id: str
+    strategy: StrategyKind
+    threshold_pct: float
+    allocation_fraction: float
+    lookback: int
+    score: float
+    aggregate_daily_return_pct: float
+    max_drawdown_pct: float
+    trade_count: int
+    scenario_stability_pct: float
+    passed_constraints: bool
+    evaluation_complete: bool
+    lineage: CandidateLineage
+
+
+class OptimalStrategyReport(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    candidate_id: str
+    strategy: StrategyKind
+    score: float
+    aggregate_daily_return_pct: float
+    max_drawdown_pct: float
+    trade_count: int
+    selected_by_objective: Literal[True]
+    selection_reason: str
+
+
+class StrategyPipelineReport(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    stages: tuple[PipelineStage, ...]
+    seed: int
+    generations: int = Field(ge=0)
+    elite_count: int = Field(ge=1)
+    mutation_count: int = Field(ge=0)
+    scoring_model: str
+    objective: str
+    ranked_candidates: tuple[PipelineCandidateReport, ...]
+    selected_candidate: OptimalStrategyReport | None
+
+
 @dataclass(frozen=True, slots=True)
 class Candle:
     timestamp: int
@@ -154,6 +226,29 @@ class IterationReport(BaseModel):
     markets: tuple[MarketReport, ...]
 
 
+class FallbackCandidateReport(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    iteration: int
+    strategy: StrategyKind
+    aggregate_daily_return_pct: float
+    failed_criteria: tuple[str, ...]
+    selected_as_fallback: bool = False
+
+
+class ValidationSummary(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
+
+    validation_status: ValidationStatus
+    fallback_used: bool
+    evaluated_candidates: int
+    passed_criteria: tuple[str, ...]
+    failed_criteria: tuple[str, ...]
+    best_available_strategy: StrategyKind | None
+    validation_scenarios: tuple[str, ...] = ()
+    repeatability_runs: int = Field(ge=0, default=0)
+
+
 class ValidationReport(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(frozen=True)
 
@@ -165,6 +260,11 @@ class ValidationReport(BaseModel):
     iterations_run: int
     selected_iteration: IterationReport | None
     iterations: tuple[IterationReport, ...]
+    validation_status: ValidationStatus
+    validation_summary: ValidationSummary
+    fallback_chain: tuple[FallbackCandidateReport, ...]
+    strategy_pipeline: StrategyPipelineReport
+    optimal_strategy: OptimalStrategyReport | None
     caveat: str
 
 
@@ -190,5 +290,11 @@ class PerformanceLogEntry(BaseModel):
     iterations_run: int
     selected_strategy: StrategyKind | None
     aggregate_daily_return_pct: float | None
+    validation_status: ValidationStatus = ValidationStatus.LEGACY
+    fallback_used: bool = False
+    fallback_strategy: StrategyKind | None = None
+    failed_criteria: tuple[str, ...] = ()
+    pipeline_score: float | None = None
+    optimal_strategy: StrategyKind | None = None
     markets: tuple[MarketPerformanceEntry, ...]
     caveat: str

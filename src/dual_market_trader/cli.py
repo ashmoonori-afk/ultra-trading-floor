@@ -62,7 +62,9 @@ def run_once(
     append_run_log(report, Path(".data/paper-runs.jsonl"))
     performance_entry = append_performance_log(report, DEFAULT_PERFORMANCE_LOG)
     selected = report.selected_iteration
+    optimal = report.optimal_strategy
     strategy = selected.strategy.value if selected is not None else "none"
+    fallback_strategy = report.validation_summary.best_available_strategy
     console.print(
         {
             "mode": report.mode,
@@ -70,6 +72,15 @@ def run_once(
             "live_order_enabled": report.live_order_enabled,
             "target_daily_return_pct": report.target_daily_return_pct,
             "target_met": report.target_met,
+            "validation_status": report.validation_status.value,
+            "fallback_used": report.validation_summary.fallback_used,
+            "best_available_strategy": (
+                fallback_strategy.value if fallback_strategy is not None else "none"
+            ),
+            "failed_criteria": report.validation_summary.failed_criteria,
+            "strategy_pipeline": report.strategy_pipeline.stages,
+            "ml_score": optimal.score if optimal is not None else None,
+            "optimal_strategy": optimal.strategy.value if optimal is not None else "none",
             "iterations_run": report.iterations_run,
             "selected_strategy": strategy,
             "output": str(report_output),

@@ -18,8 +18,14 @@ def market_rows(latest: PerformanceLogEntry | None) -> str:
 
 def run_rows(entries: Sequence[PerformanceLogEntry]) -> str:
     if not entries:
-        return '<tr><td colspan="7" class="empty">No performance runs logged yet.</td></tr>'
+        return '<tr><td colspan="10" class="empty">No performance runs logged yet.</td></tr>'
     return "\n".join(_run_row(entry) for entry in reversed(entries[-25:]))
+
+
+def pipeline_rows(entries: Sequence[PerformanceLogEntry]) -> str:
+    if not entries:
+        return '<tr><td colspan="5" class="empty">No strategy pipeline runs logged yet.</td></tr>'
+    return "\n".join(_pipeline_row(entry) for entry in reversed(entries[-25:]))
 
 
 def live_paper_rows(entries: Sequence[LivePaperExecutionResult]) -> str:
@@ -52,16 +58,37 @@ def _run_row(entry: PerformanceLogEntry) -> str:
     status = "met" if entry.target_met else "open"
     markets = ", ".join(market.market.value.upper() for market in entry.markets)
     strategy = entry.selected_strategy.value if entry.selected_strategy is not None else "none"
+    fallback = entry.fallback_strategy.value if entry.fallback_strategy is not None else "none"
+    failed = ", ".join(entry.failed_criteria) if entry.failed_criteria else "none"
     return "".join(
         (
             "<tr>",
             f"<td>{escape(entry.recorded_at)}</td>",
             f"<td>{escape(format_pct(entry.target_daily_return_pct))}</td>",
             f'<td><span class="status {status}">{status}</span></td>',
+            f"<td>{escape(entry.validation_status.value)}</td>",
             f"<td>{escape(format_pct(entry.aggregate_daily_return_pct))}</td>",
             f"<td>{escape(strategy)}</td>",
+            f"<td>{escape(fallback)}</td>",
+            f"<td>{escape(failed)}</td>",
             f"<td>{entry.iterations_run}</td>",
             f"<td>{escape(markets)}</td>",
+            "</tr>",
+        ),
+    )
+
+
+def _pipeline_row(entry: PerformanceLogEntry) -> str:
+    strategy = entry.optimal_strategy.value if entry.optimal_strategy is not None else "none"
+    score = format_number(entry.pipeline_score) if entry.pipeline_score is not None else "n/a"
+    return "".join(
+        (
+            "<tr>",
+            f"<td>{escape(entry.recorded_at)}</td>",
+            "<td>validation -> modification -> evolution -> ml_scoring -> optimal_selection</td>",
+            f"<td>{escape(score)}</td>",
+            f"<td>{escape(strategy)}</td>",
+            f"<td>{escape(entry.validation_status.value)}</td>",
             "</tr>",
         ),
     )

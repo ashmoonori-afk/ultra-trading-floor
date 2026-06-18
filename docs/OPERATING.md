@@ -6,6 +6,12 @@ Run the local paper validation loop:
 uv run dual-market-paper-trader run-once --markets KR,US --target-daily-return-pct 5.0 --sample deterministic --evidence-dir .omo/evidence
 ```
 
+Interpret the paper validation result:
+
+- `validation_status=pass` means the selected candidate met target return, traded every market, stayed non-negative per market, stayed inside the configured drawdown limit, repeated across the primary training and validation scenarios, and did not require fallback.
+- `validation_status=fallback` means no candidate passed every gate; the selected strategy is the best available paper fallback and `target_met=false`.
+- fallback output is analysis evidence only, not readiness for live orders.
+
 Run the live-order firewall check:
 
 ```bash

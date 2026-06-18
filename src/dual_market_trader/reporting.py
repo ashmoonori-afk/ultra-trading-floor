@@ -77,6 +77,12 @@ def read_live_paper_execution_log(path: Path) -> tuple[LivePaperExecutionResult,
 
 def build_performance_log_entry(report: ValidationReport) -> PerformanceLogEntry:
     selected = report.selected_iteration
+    optimal = report.optimal_strategy
+    fallback_strategy = (
+        report.validation_summary.best_available_strategy
+        if report.validation_summary.fallback_used
+        else None
+    )
     return PerformanceLogEntry(
         recorded_at=datetime.now(UTC).isoformat(timespec="seconds"),
         target_daily_return_pct=report.target_daily_return_pct,
@@ -86,6 +92,12 @@ def build_performance_log_entry(report: ValidationReport) -> PerformanceLogEntry
         aggregate_daily_return_pct=(
             selected.aggregate_daily_return_pct if selected is not None else None
         ),
+        validation_status=report.validation_status,
+        fallback_used=report.validation_summary.fallback_used,
+        fallback_strategy=fallback_strategy,
+        failed_criteria=report.validation_summary.failed_criteria,
+        pipeline_score=optimal.score if optimal is not None else None,
+        optimal_strategy=optimal.strategy if optimal is not None else None,
         markets=(
             tuple(
                 MarketPerformanceEntry(

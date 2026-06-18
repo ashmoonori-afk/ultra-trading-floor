@@ -12,6 +12,7 @@ from dual_market_trader.dashboard_tables import (
     live_paper_rows,
     live_rows,
     market_rows,
+    pipeline_rows,
     run_rows,
 )
 from dual_market_trader.reporting import (
@@ -115,8 +116,24 @@ def _dashboard_body(
             ),
             _section(
                 "Persistent Performance Log",
-                ("Recorded", "Target", "Status", "Return", "Strategy", "Iterations", "Markets"),
+                (
+                    "Recorded",
+                    "Target",
+                    "Status",
+                    "Validation",
+                    "Return",
+                    "Strategy",
+                    "Fallback",
+                    "Failed Criteria",
+                    "Iterations",
+                    "Markets",
+                ),
                 run_rows(entries),
+            ),
+            _section(
+                "Strategy Pipeline",
+                ("Recorded", "Stages", "ML Score", "Optimal Strategy", "Validation"),
+                pipeline_rows(entries),
             ),
             _section(
                 "Live Paper Validation Log",
@@ -175,11 +192,14 @@ def _metrics(
 ) -> str:
     status = "Met" if latest is not None and latest.target_met else "Open"
     status_tone = "good" if latest is not None and latest.target_met else "watch"
+    validation = latest.validation_status.value if latest is not None else "none"
+    validation_tone = "good" if validation == "pass" else "watch"
     return "\n".join(
         (
             '<div class="metrics">',
             _metric("Latest return", format_pct(_latest_return(latest)), "good"),
             _metric("Target status", status, status_tone),
+            _metric("Validation", validation, validation_tone),
             _metric("Logged runs", str(len(entries)), "blue"),
             _metric("Live paper fills", str(len(live_paper_entries)), "blue"),
             _metric("Live orders", str(len(live_entries)), "blue"),

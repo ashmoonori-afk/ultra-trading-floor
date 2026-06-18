@@ -33,6 +33,10 @@ def test_performance_log_is_append_only_jsonl(tmp_path: Path) -> None:
     assert entries == (first, second)
     assert len(log_path.read_text(encoding="utf-8").splitlines()) == 2
     assert entries[-1].target_met is True
+    assert entries[-1].validation_status.value == "pass"
+    assert entries[-1].fallback_used is False
+    assert entries[-1].fallback_strategy is None
+    assert entries[-1].failed_criteria == ()
     assert entries[-1].aggregate_daily_return_pct is not None
     assert {market.market.value for market in entries[-1].markets} == {"kr", "us"}
 
@@ -49,7 +53,37 @@ def test_dashboard_renders_persistent_performance_log(tmp_path: Path) -> None:
     assert "PAPER ONLY" in html
     assert "KR" in html
     assert "US" in html
-    assert "7.82%" in html
+    assert "11.43%" in html
+    assert "Validation" in html
+    assert "pass" in html
+    assert "Fallback" in html
+    assert "Strategy Pipeline" in html
+    assert "ML Score" in html
+    assert "Optimal Strategy" in html
+    assert "<td>breakout</td><td>none</td><td>none</td><td>4</td>" in html
+
+
+def test_dashboard_renders_fallback_validation_state(tmp_path: Path) -> None:
+    config = load_run_config(Path("examples/paper_target_5.json")).with_overrides(
+        markets=(Market.KR, Market.US),
+        target_daily_return_pct=20.0,
+    )
+    report = run_improvement_loop(config)
+    log_path = tmp_path / "performance-log.jsonl"
+    _ = append_performance_log(report, log_path)
+    entry = read_performance_log(log_path)[-1]
+
+    html = render_dashboard(log_path)
+
+    assert entry.fallback_used is True
+    assert entry.fallback_strategy is not None
+    assert entry.fallback_strategy.value == "buy_hold"
+    assert "fallback" in html
+    assert (
+        "<td>buy_hold</td><td>buy_hold</td>"
+        "<td>aggregate_return_below_target, validation_scenario_below_target</td><td>5</td>"
+    ) in html
+    assert "aggregate_return_below_target" in html
 
 
 def test_dashboard_renders_live_execution_log(tmp_path: Path) -> None:
